@@ -111,10 +111,3 @@ RATE_PER_SEC=5            # ticks per second
 SPOOF_EVERY_SEC=20        # how often to inject a spoofing burst
 SYMBOLS=ACME,GLOBEX,INITECH,HOOLI,VEHEMENT
 ```
-
----
-
-## The write-up
-
-`ARTICLE.md` (EN) and `ARTICLE.fr.md` (FR) are the companion posts.
-`market-surveillance-split.mp4` / `market-surveillance-desk.mp4` are the demo clips.

@@ -22,7 +22,7 @@
 
 services:
   pulse:
-    image: "${PULSE_IMAGE:-ghcr.io/olsisoft/streamflow-pulse}:${STREAMFLOW_TAG:-latest}"
+    image: "${PULSE_IMAGE:-ghcr.io/olsisoft/streamflow-pulse}:${STREAMFLOW_TAG:-2.7.3}"
     container_name: pulse
     restart: unless-stopped
     pull_policy: always
