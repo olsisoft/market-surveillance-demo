@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Market Surveillance demo — PUBLIC variant ("pull, don't build").
+#
+# Same demo as docker-compose.yml, but Pulse is PULLED from the public registry
+# instead of built from source — so you can run it WITHOUT the (private)
+# streamflow monorepo. You only need this folder.
+#
+#   docker compose -f docker-compose.public.yml up
+#
+# Pulse image (override with env if you mirror it):
+#   PULSE_IMAGE     default ghcr.io/olsisoft/streamflow-pulse
+#   STREAMFLOW_TAG  default latest
+#
+# NOTE: the published image must include the `market-surveillance` template plus
+# the fix-decode (WASM) and market-anomaly-scorer (ONNX) catalog artefacts — i.e.
+# a release cut AFTER those landed on the default branch. Pin STREAMFLOW_TAG to
+# that release (e.g. v2.x.y) for a reproducible demo.
+#
+# The three sidecars below build locally from public base images (python/alpine),
+# so they need no private source.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  pulse:
+    image: "${PULSE_IMAGE:-ghcr.io/olsisoft/streamflow-pulse}:${STREAMFLOW_TAG:-latest}"
+    container_name: pulse
+    restart: unless-stopped
+    pull_policy: always
+    environment:
+      PULSE_PORT: "9090"
+      PULSE_DATA_DIR: "/data"
+      JAVA_OPTS: "-Xmx1g -Xms256m"
+    ports:
+      - "9090:9090"
+      - "9091:9091"
+    volumes:
+      - pulse-data:/data
+    networks: [surveillance-net]
+
+  desk-intake:
+    build: ./desk-intake
+    container_name: desk-intake
+    restart: unless-stopped
+    environment:
+      PORT: "8088"
+    ports:
+      - "8088:8088"
+    networks: [surveillance-net]
+
+  provisioner:
+    build: ./provisioner
+    container_name: surveillance-provisioner
+    restart: "no"
+    depends_on:
+      pulse:
+        condition: service_healthy
+      desk-intake:
+        condition: service_started
+    environment:
+      PULSE_URL: "http://pulse:9090"
+      ADMIN_USER: "${ADMIN_USER:-desk}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-Surveil1234!}"
+      ORG_NAME: "${ORG_NAME:-Surveillance Desk}"
+      TEMPLATE_ID: "market-surveillance"
+      DESK_WEBHOOK_URL: "http://desk-intake:8088/ingest"
+      INGRESS_FILE: "/shared/ingress.url"
+      LLM_PROVIDER: "${LLM_PROVIDER:-}"
+      LLM_MODEL: "${LLM_MODEL:-}"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+    volumes:
+      - shared:/shared
+    networks: [surveillance-net]
+
+  marketdata-gen:
+    build: ./marketdata-gen
+    container_name: marketdata-gen
+    restart: unless-stopped
+    depends_on:
+      provisioner:
+        condition: service_completed_successfully
+    environment:
+      INGRESS_FILE: "/shared/ingress.url"
+      RATE_PER_SEC: "${RATE_PER_SEC:-5}"
+      SPOOF_EVERY_SEC: "${SPOOF_EVERY_SEC:-20}"
+      SYMBOLS: "${SYMBOLS:-ACME,GLOBEX,INITECH,HOOLI,VEHEMENT}"
+    volumes:
+      - shared:/shared:ro
+    networks: [surveillance-net]
+
+networks:
+  surveillance-net:
+    driver: bridge
+
+volumes:
+  pulse-data: {}
+  shared: {}
